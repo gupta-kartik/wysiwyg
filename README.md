@@ -11,7 +11,8 @@ A lightning-fast note-taking web application that seamlessly integrates with Git
 - **💾 Seamless GitHub integration** - Save notes as comments or create new Issues
 - **🏷️ Label management** - Select from repository labels when creating Issues
 - **⌨️ Keyboard shortcuts** - Ctrl/Cmd+Enter to save instantly
-- **🔐 Secure authentication** - GitHub OAuth with team access control
+- **🔑 Simple authentication** - GitHub Personal Access Token (no OAuth setup needed)
+- **⚙️ Configurable repositories** - Switch between repositories on-the-fly
 - **📱 Responsive design** - Works great on desktop and tablet
 - **♿ Accessible** - WCAG AA compliant with proper focus management
 
@@ -23,14 +24,14 @@ A lightning-fast note-taking web application that seamlessly integrates with Git
 2. **Smart Issue suggestions** - Auto-suggest Issues based on typed keywords
 3. **Create new Issues** - Create Issues with titles, descriptions, and labels
 4. **Quick label selection** - Multi-select from predefined repository labels
-5. **Secure team access** - GitHub OAuth with organization/team restrictions
+5. **Simple authentication** - GitHub Personal Access Token for quick setup
 
 ![New Issue Creation](https://github.com/user-attachments/assets/3377ae0c-d513-4896-a399-2edc4fde0050)
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15 with TypeScript and Tailwind CSS
-- **Authentication**: NextAuth.js with GitHub OAuth
+- **Authentication**: GitHub Personal Access Token
 - **GitHub Integration**: Octokit REST API
 - **Icons**: Lucide React
 - **Styling**: Tailwind CSS with custom responsive design
@@ -45,47 +46,33 @@ cd wysiwyg
 npm install
 ```
 
-### 2. Configure GitHub OAuth
+### 2. Create GitHub Personal Access Token
 
-1. Go to [GitHub Developer Settings](https://github.com/settings/applications/new)
-2. Create a new OAuth App with:
-   - **Application name**: Quick Notes - Solutions Engineering
-   - **Homepage URL**: `http://localhost:3000`
-   - **Authorization callback URL**: `http://localhost:3000/api/auth/callback/github`
-3. Copy the Client ID and Client Secret
+1. Go to [GitHub Settings > Personal Access Tokens](https://github.com/settings/tokens/new)
+2. Click "Generate new token (classic)"
+3. Give it a name like "Quick Notes App"
+4. Select these scopes:
+   - `repo` - Full control of repositories
+   - `read:user` - Read user profile data
+5. Click "Generate token" and copy it
 
-### 3. Environment Variables
+### 3. Environment Variables (Optional)
 
-Copy the example environment file and configure it:
+Copy the example environment file and configure default repository:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your values:
+Edit `.env.local` with your preferred defaults:
 
 ```bash
-# GitHub OAuth App Configuration
-GITHUB_CLIENT_ID=your_github_client_id_here
-GITHUB_CLIENT_SECRET=your_github_client_secret_here
-
-# NextAuth Configuration
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_random_secret_here
-
-# Repository Configuration
-GITHUB_REPO_OWNER=github
-GITHUB_REPO_NAME=solutions-engineering
+# Default Repository Configuration (optional)
+GITHUB_REPO_OWNER=your-org
+GITHUB_REPO_NAME=your-repo
 ```
 
-### 4. Required GitHub Permissions
-
-The OAuth app needs these scopes:
-- `repo` - Full access to repositories (to create Issues and comments)
-- `read:user` - Read user profile information
-- `read:org` - Read organization membership (for access control)
-
-### 5. Run the Application
+### 4. Run the Application
 
 ```bash
 # Development
@@ -100,13 +87,18 @@ Visit `http://localhost:3000` to start using the app.
 
 ## Usage
 
+### First Time Setup
+
+1. **Enter your GitHub PAT** when prompted
+2. **Configure repository** (optional) using the settings panel
+3. You're ready to capture notes!
+
 ### Adding Notes to Existing Issues
 
-1. **Sign in** with your GitHub account
-2. **Type your notes** in the main textarea
-3. **Search for Issues** by typing keywords in the Issue search box
-4. **Select an Issue** from the auto-suggestions
-5. **Save** using the button or Ctrl/Cmd+Enter
+1. **Type your notes** in the main textarea
+2. **Search for Issues** by typing keywords in the Issue search box
+3. **Select an Issue** from the auto-suggestions
+4. **Save** using the button or Ctrl/Cmd+Enter
 
 ### Creating New Issues
 
@@ -116,22 +108,33 @@ Visit `http://localhost:3000` to start using the app.
 4. **Select labels** from the available options
 5. **Save** to create the Issue with your notes as the description
 
+### Repository Configuration
+
+- **Settings Panel**: Click the settings icon in the header
+- **Change on-the-fly**: Switch repositories without restarting
+- **Persistent**: Settings are saved in browser storage
+
 ## API Routes
 
 The application includes these API endpoints:
 
-- `GET /api/github/search-issues?q=query` - Search repository Issues
+- `GET /api/github/user` - Validate PAT and get user info
+- `GET /api/github/search-issues?q=query&owner=owner&repo=repo` - Search repository Issues  
 - `POST /api/github/create-issue` - Create new Issue with labels
 - `POST /api/github/add-comment` - Add comment to existing Issue
-- `GET /api/github/labels` - Fetch repository labels
-- `/api/auth/[...nextauth]` - NextAuth.js authentication
+- `GET /api/github/labels?owner=owner&repo=repo` - Fetch repository labels
+
+## Required GitHub Token Scopes
+
+- **`repo`**: Required to create issues, add comments, and search issues
+- **`read:user`**: Required to get user information for attribution
 
 ## Security Features
 
-- **OAuth Authentication** - Secure GitHub integration
-- **Session Management** - Proper token handling with NextAuth.js
-- **API Protection** - All GitHub API routes require authentication
-- **Access Control** - Can be restricted to specific GitHub organizations/teams
+- **PAT Authentication** - Simple and secure token-based authentication
+- **Client-side storage** - Token stored in browser localStorage only
+- **API Protection** - All GitHub API routes require valid token
+- **Easy revocation** - Users can revoke/rotate tokens anytime in GitHub settings
 
 ## Accessibility
 
@@ -139,6 +142,18 @@ The application includes these API endpoints:
 - **Keyboard navigation** - Full keyboard support with shortcuts
 - **Screen reader friendly** - Proper ARIA labels and semantic HTML
 - **Focus management** - Clear focus indicators and logical tab order
+
+## Troubleshooting
+
+### Invalid Token Error
+- Ensure your PAT has the correct scopes (`repo`, `read:user`)
+- Check if the token is still valid in GitHub Settings
+- Generate a new token if needed
+
+### Repository Not Found
+- Verify the repository owner and name are correct
+- Ensure your token has access to the repository
+- Check if the repository is private and your token has appropriate permissions
 
 ## Contributing
 

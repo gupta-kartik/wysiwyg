@@ -1,31 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 import { Octokit } from '@octokit/rest';
-import { ExtendedSession } from '@/types/session';
-
-const REPO_OWNER = 'github';
-const REPO_NAME = 'solutions-engineering';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession() as ExtendedSession | null;
+    const authHeader = request.headers.get('authorization');
     
-    if (!session || !session.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authorization header required' }, { status: 401 });
     }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
+    const repoOwner = searchParams.get('owner') || process.env.GITHUB_REPO_OWNER || 'github';
+    const repoName = searchParams.get('repo') || process.env.GITHUB_REPO_NAME || 'solutions-engineering';
 
     if (!query) {
       return NextResponse.json({ error: 'Query parameter required' }, { status: 400 });
     }
 
     const octokit = new Octokit({
-      auth: session.accessToken,
+      auth: token,
     });
 
-    const searchQuery = `repo:${REPO_OWNER}/${REPO_NAME} ${query} in:title,body`;
+    const searchQuery = `repo:${repoOwner}/${repoName} ${query} in:title,body`;
     
     const response = await octokit.rest.search.issuesAndPullRequests({
       q: searchQuery,

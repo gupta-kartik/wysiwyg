@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 import { Octokit } from '@octokit/rest';
-import { ExtendedSession } from '@/types/session';
-
-const REPO_OWNER = 'github';
-const REPO_NAME = 'solutions-engineering';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession() as ExtendedSession | null;
+    const authHeader = request.headers.get('authorization');
     
-    if (!session || !session.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Authorization header required' }, { status: 401 });
     }
 
-    const { issueNumber, body } = await request.json();
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    const { issueNumber, body, repoOwner, repoName } = await request.json();
 
     if (!issueNumber || !body) {
       return NextResponse.json(
@@ -23,17 +20,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const owner = repoOwner || process.env.GITHUB_REPO_OWNER || 'github';
+    const repo = repoName || process.env.GITHUB_REPO_NAME || 'solutions-engineering';
+
     const octokit = new Octokit({
-      auth: session.accessToken,
+      auth: token,
     });
+
+    // Get user info for attribution
+    let userInfo = 'Unknown User';
+    try {
+      const userResponse = await octokit.rest.users.getAuthenticated();
+      userInfo = userResponse.data.name || userResponse.data.login;
+    } catch (error) {
+      console.warn('Could not get user info:', error);
+    }
 
     // Add timestamp and author info to the comment
     const timestamp = new Date().toISOString();
-    const enhancedBody = `${body}\n\n---\n*Added via Quick Notes by ${session.user?.name || session.user?.email} at ${timestamp}*`;
+    const enhancedBody = `${body}\n\n---\n*Added via Quick Notes by ${userInfo} at ${timestamp}*`;
 
     const response = await octokit.rest.issues.createComment({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
+      owner,
+      repo,
       issue_number: issueNumber,
       body: enhancedBody,
     });

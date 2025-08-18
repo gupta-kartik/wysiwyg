@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Save, Plus, User, LogOut, Github } from 'lucide-react';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { Search, Save, Plus, User, LogOut, Github, Key, Settings } from 'lucide-react';
 
 interface Issue {
   number: number;
@@ -18,8 +17,21 @@ interface Label {
   description?: string;
 }
 
+interface UserInfo {
+  login: string;
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
 export default function Home() {
-  const { data: session, status } = useSession();
+  const [pat, setPat] = useState<string>('');
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [repoOwner, setRepoOwner] = useState('github');
+  const [repoName, setRepoName] = useState('solutions-engineering');
+
   const [note, setNote] = useState('');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,6 +47,74 @@ export default function Home() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const validatePat = useCallback(async (token: string) => {
+    if (!token.trim()) {
+      setUser(null);
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      const response = await fetch('/api/github/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+        localStorage.setItem('github-pat', token);
+      } else {
+        setUser(null);
+        localStorage.removeItem('github-pat');
+        showNotification('Invalid GitHub Personal Access Token', 'error');
+      }
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      setUser(null);
+      localStorage.removeItem('github-pat');
+      showNotification('Failed to validate token', 'error');
+    } finally {
+      setIsValidating(false);
+    }
+  }, []);
+
+  const fetchLabels = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/github/labels?owner=${encodeURIComponent(repoOwner)}&repo=${encodeURIComponent(repoName)}`, {
+        headers: {
+          'Authorization': `Bearer ${pat}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableLabels(data.labels);
+      }
+    } catch (error) {
+      console.error('Failed to fetch labels:', error);
+    }
+  }, [pat, repoOwner, repoName]);
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  // Load PAT from localStorage on mount
+  useEffect(() => {
+    const savedPat = localStorage.getItem('github-pat');
+    const savedRepoOwner = localStorage.getItem('repo-owner');
+    const savedRepoName = localStorage.getItem('repo-name');
+    
+    if (savedPat) {
+      setPat(savedPat);
+      validatePat(savedPat);
+    }
+    if (savedRepoOwner) setRepoOwner(savedRepoOwner);
+    if (savedRepoName) setRepoName(savedRepoName);
+  }, [validatePat]); // Include validatePat dependency
+
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
@@ -45,20 +125,34 @@ export default function Home() {
 
   // Load labels when authenticated
   useEffect(() => {
-    if (session) {
+    if (user && pat) {
       fetchLabels();
     }
-  }, [session]);
+  }, [user, pat, repoOwner, repoName, fetchLabels]); // Include fetchLabels dependency
 
-  const fetchLabels = async () => {
-    try {
-      const response = await fetch('/api/github/labels');
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableLabels(data.labels);
-      }
-    } catch (error) {
-      console.error('Failed to fetch labels:', error);
+  const handlePATSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    validatePat(pat);
+  };
+
+  const handleLogout = () => {
+    setPat('');
+    setUser(null);
+    localStorage.removeItem('github-pat');
+    setNote('');
+    setSelectedIssue(null);
+    setShowNewIssue(false);
+    setNewIssueTitle('');
+    setSelectedLabels([]);
+    setSearchQuery('');
+  };
+
+  const updateRepoSettings = () => {
+    localStorage.setItem('repo-owner', repoOwner);
+    localStorage.setItem('repo-name', repoName);
+    setShowSettings(false);
+    if (user && pat) {
+      fetchLabels(); // Refresh labels for new repo
     }
   };
 
@@ -68,11 +162,15 @@ export default function Home() {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (searchQuery.trim() && session) {
+    if (searchQuery.trim() && user && pat) {
       setIsSearching(true);
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-          const response = await fetch(`/api/github/search-issues?q=${encodeURIComponent(searchQuery)}`);
+          const response = await fetch(`/api/github/search-issues?q=${encodeURIComponent(searchQuery)}&owner=${encodeURIComponent(repoOwner)}&repo=${encodeURIComponent(repoName)}`, {
+            headers: {
+              'Authorization': `Bearer ${pat}`,
+            },
+          });
           if (response.ok) {
             const data = await response.json();
             setSuggestions(data.issues);
@@ -96,11 +194,11 @@ export default function Home() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, session]);
+  }, [searchQuery, user, pat, repoOwner, repoName]); // Include repo dependencies
 
   // Keyboard shortcuts
   const handleSave = useCallback(async () => {
-    if (!note.trim() || !session) return;
+    if (!note.trim() || !user || !pat) return;
     
     setIsSaving(true);
     try {
@@ -108,11 +206,16 @@ export default function Home() {
         // Create new issue
         const response = await fetch('/api/github/create-issue', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${pat}`,
+          },
           body: JSON.stringify({
             title: newIssueTitle,
             body: note,
             labels: selectedLabels,
+            repoOwner,
+            repoName,
           }),
         });
 
@@ -126,10 +229,15 @@ export default function Home() {
         // Add comment to existing issue
         const response = await fetch('/api/github/add-comment', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${pat}`,
+          },
           body: JSON.stringify({
             issueNumber: selectedIssue.number,
             body: note,
+            repoOwner,
+            repoName,
           }),
         });
 
@@ -156,7 +264,7 @@ export default function Home() {
     } finally {
       setIsSaving(false);
     }
-  }, [note, showNewIssue, newIssueTitle, selectedLabels, selectedIssue, session]);
+  }, [note, showNewIssue, newIssueTitle, selectedLabels, selectedIssue, user, pat, repoOwner, repoName]); // Include repo dependencies
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,34 +278,111 @@ export default function Home() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!session) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <div className="text-center">
+          <div className="text-center mb-6">
             <Github className="mx-auto h-12 w-12 text-gray-900 mb-4" />
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Quick Notes</h1>
-            <p className="text-gray-600 mb-6">Solutions Engineering</p>
+            <p className="text-gray-600">Solutions Engineering</p>
+          </div>
+
+          <form onSubmit={handlePATSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="pat" className="block text-sm font-medium text-gray-700 mb-2">
+                GitHub Personal Access Token
+              </label>
+              <div className="relative">
+                <Key className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <input
+                  id="pat"
+                  type="password"
+                  value={pat}
+                  onChange={(e) => setPat(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
             <button
-              onClick={() => signIn('github')}
-              className="w-full bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+              type="submit"
+              disabled={isValidating || !pat.trim()}
+              className="w-full bg-gray-900 text-white px-4 py-3 rounded-md hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              <Github className="h-4 w-4" />
-              Sign in with GitHub
+              {isValidating ? (
+                <>Loading...</>
+              ) : (
+                <>
+                  <Github className="h-4 w-4" />
+                  Connect to GitHub
+                </>
+              )}
             </button>
+          </form>
+
+          <div className="mt-6 text-xs text-gray-500 space-y-2">
+            <p>
+              <strong>Required scopes:</strong> <code>repo</code>, <code>read:user</code>
+            </p>
+            <p>
+              Create a token at{' '}
+              <a 
+                href="https://github.com/settings/tokens/new" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800"
+              >
+                GitHub Settings
+              </a>
+            </p>
+          </div>
+
+          <div className="mt-4 border-t pt-4">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
+            >
+              <Settings className="h-4 w-4" />
+              Repository Settings
+            </button>
+            
+            {showSettings && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Repository Owner
+                  </label>
+                  <input
+                    type="text"
+                    value={repoOwner}
+                    onChange={(e) => setRepoOwner(e.target.value)}
+                    className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="github"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Repository Name
+                  </label>
+                  <input
+                    type="text"
+                    value={repoName}
+                    onChange={(e) => setRepoName(e.target.value)}
+                    className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="solutions-engineering"
+                  />
+                </div>
+                <button
+                  onClick={updateRepoSettings}
+                  className="w-full bg-blue-600 text-white px-3 py-2 text-sm rounded hover:bg-blue-700 transition-colors"
+                >
+                  Save Settings
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -212,25 +397,72 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Github className="h-6 w-6 text-gray-900" />
             <h1 className="text-xl font-semibold text-gray-900">Quick Notes</h1>
+            <span className="text-sm text-gray-500">→ {repoOwner}/{repoName}</span>
           </div>
           <div className="flex items-center gap-3">
-            {session.user && (
-              <>
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-gray-500" />
-                  <span className="text-sm text-gray-700">{session.user.name || session.user.email}</span>
-                </div>
-                <button
-                  onClick={() => signOut()}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                  title="Sign out"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </>
-            )}
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5 text-gray-500" />
+              <span className="text-sm text-gray-700">{user.name || user.login}</span>
+            </div>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="text-gray-500 hover:text-gray-700 transition-colors"
+              title="Repository Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-gray-500 hover:text-gray-700 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="border-t bg-gray-50 px-4 py-3">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Repository Owner
+                  </label>
+                  <input
+                    type="text"
+                    value={repoOwner}
+                    onChange={(e) => setRepoOwner(e.target.value)}
+                    className="p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="github"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Repository Name
+                  </label>
+                  <input
+                    type="text"
+                    value={repoName}
+                    onChange={(e) => setRepoName(e.target.value)}
+                    className="p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="solutions-engineering"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">&nbsp;</label>
+                  <button
+                    onClick={updateRepoSettings}
+                    className="bg-blue-600 text-white px-4 py-2 text-sm rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Update
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
