@@ -41,11 +41,20 @@ export default function Home() {
   const [newIssueTitle, setNewIssueTitle] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
+  const [labelSearchQuery, setLabelSearchQuery] = useState('');
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error'; link?: string } | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const labelDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filtered labels based on search query
+  const filteredLabels = availableLabels.filter(label => 
+    label.name.toLowerCase().includes(labelSearchQuery.toLowerCase()) &&
+    !selectedLabels.includes(label.name)
+  );
 
   const validatePat = useCallback(async (token: string) => {
     if (!token.trim()) {
@@ -96,9 +105,9 @@ export default function Home() {
     }
   }, [pat, repoOwner, repoName]);
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+  const showNotification = (message: string, type: 'success' | 'error', link?: string) => {
+    setNotification({ message, type, link });
+    setTimeout(() => setNotification(null), 5000); // Increased timeout for link clicks
   };
 
   // Load PAT from localStorage on mount
@@ -144,6 +153,8 @@ export default function Home() {
     setShowNewIssue(false);
     setNewIssueTitle('');
     setSelectedLabels([]);
+    setLabelSearchQuery('');
+    setShowLabelDropdown(false);
     setSearchQuery('');
   };
 
@@ -221,7 +232,7 @@ export default function Home() {
 
         if (response.ok) {
           const data = await response.json();
-          showNotification(`New issue #${data.number} created successfully!`, 'success');
+          showNotification(`New issue #${data.number} created successfully!`, 'success', data.url);
         } else {
           throw new Error('Failed to create issue');
         }
@@ -242,7 +253,8 @@ export default function Home() {
         });
 
         if (response.ok) {
-          showNotification(`Comment added to issue #${selectedIssue.number} successfully!`, 'success');
+          const data = await response.json();
+          showNotification(`Comment added to issue #${selectedIssue.number} successfully!`, 'success', data.url);
         } else {
           throw new Error('Failed to add comment');
         }
@@ -257,6 +269,8 @@ export default function Home() {
       setShowNewIssue(false);
       setNewIssueTitle('');
       setSelectedLabels([]);
+      setLabelSearchQuery('');
+      setShowLabelDropdown(false);
       setSearchQuery('');
     } catch (error) {
       console.error('Save failed:', error);
@@ -277,6 +291,18 @@ export default function Home() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
+
+  // Close label dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   if (!user) {
     return (
@@ -485,6 +511,88 @@ export default function Home() {
               />
             </div>
 
+            {/* Selected Labels - Always Visible */}
+            {selectedLabels.length > 0 && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Selected Labels
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {selectedLabels.map((labelName) => {
+                    const label = availableLabels.find(l => l.name === labelName);
+                    return (
+                      <div
+                        key={labelName}
+                        className="flex items-center gap-1 px-3 py-1 text-xs rounded-full border"
+                        style={{
+                          backgroundColor: label ? `#${label.color}20` : '#f3f4f6',
+                          borderColor: label ? `#${label.color}60` : '#d1d5db',
+                          color: label ? `#${label.color}` : '#374151'
+                        }}
+                      >
+                        {labelName}
+                        <button
+                          onClick={() => setSelectedLabels(selectedLabels.filter(l => l !== labelName))}
+                          className="ml-1 hover:bg-black hover:bg-opacity-10 rounded-full p-0.5"
+                          title="Remove label"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Label Search */}
+            <div className="mb-6" ref={labelDropdownRef}>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Add Labels
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={labelSearchQuery}
+                  onChange={(e) => {
+                    setLabelSearchQuery(e.target.value);
+                    setShowLabelDropdown(true);
+                  }}
+                  onFocus={() => setShowLabelDropdown(true)}
+                  placeholder="Type to search labels..."
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                
+                {/* Label Dropdown */}
+                {showLabelDropdown && filteredLabels.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredLabels.map((label) => (
+                      <button
+                        key={label.name}
+                        onClick={() => {
+                          setSelectedLabels([...selectedLabels, label.name]);
+                          setLabelSearchQuery('');
+                          setShowLabelDropdown(false);
+                        }}
+                        className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center gap-2"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: `#${label.color}` }}
+                        />
+                        <div>
+                          <div className="font-medium text-sm">{label.name}</div>
+                          {label.description && (
+                            <div className="text-xs text-gray-500">{label.description}</div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Issue Selection */}
             <div className="mb-6">
               <label htmlFor="issue-search" className="block text-sm font-medium text-gray-700 mb-2">
@@ -564,34 +672,8 @@ export default function Home() {
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Labels</label>
-                  <div className="flex flex-wrap gap-2">
-                    {availableLabels.map((label) => (
-                      <button
-                        key={label.name}
-                        onClick={() => {
-                          if (selectedLabels.includes(label.name)) {
-                            setSelectedLabels(selectedLabels.filter(l => l !== label.name));
-                          } else {
-                            setSelectedLabels([...selectedLabels, label.name]);
-                          }
-                        }}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                          selectedLabels.includes(label.name)
-                            ? 'bg-blue-100 text-blue-800 border-blue-300'
-                            : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
-                        }`}
-                        style={{
-                          backgroundColor: selectedLabels.includes(label.name) 
-                            ? `#${label.color}20` 
-                            : undefined
-                        }}
-                      >
-                        {label.name}
-                      </button>
-                    ))}
-                  </div>
+                <div className="text-sm text-gray-600">
+                  Use the &quot;Add Labels&quot; section above to select labels for this issue.
                 </div>
               </div>
             )}
@@ -613,10 +695,22 @@ export default function Home() {
 
       {/* Notification Toast */}
       {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg ${
+        <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg max-w-sm ${
           notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
         }`}>
-          {notification.message}
+          <div className="flex flex-col gap-2">
+            <div>{notification.message}</div>
+            {notification.link && (
+              <a
+                href={notification.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white underline hover:no-underline text-sm font-medium"
+              >
+                View on GitHub →
+              </a>
+            )}
+          </div>
         </div>
       )}
     </div>
