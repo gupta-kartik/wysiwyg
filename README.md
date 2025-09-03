@@ -1,6 +1,10 @@
 # Quick Notes - Solutions Engineering
 
-A lightning-fast note-taking web application that seamlessly integrates with GitHub Issues. Perfect for Solutions Engineers who need to capture notes during meetings and quickly save them to the right GitHub Issue.
+A lightning-fast note-taking web application that seamlessly integrates with GitHub Issues. Perfect for Solutions Engineers who need to capture notes during meetings and quickly save them to the right repository.
+
+## 🚀 **[Try the Live Demo →](https://quicknotes.gupta-kartik.com)**
+
+**Ready to use immediately** - No installation required! Just visit [quicknotes.gupta-kartik.com](https://quicknotes.gupta-kartik.com) and start capturing notes.
 
 ![Quick Notes Authentication Screen](https://github.com/user-attachments/assets/7e25adf6-c698-41d3-9ef3-88c9c815dc5d)
 
@@ -17,6 +21,25 @@ A lightning-fast note-taking web application that seamlessly integrates with Git
 - **♿ Accessible** - WCAG AA compliant with proper focus management
 
 ![Main Interface](https://github.com/user-attachments/assets/894d54aa-e857-4c8f-9cba-ae8cdc5862de)
+
+## Quick Start
+
+### 🌐 **Use the Live App**
+1. Visit **[quicknotes.gupta-kartik.com](https://quicknotes.gupta-kartik.com)**
+2. Enter your GitHub Personal Access Token
+3. Start capturing notes immediately!
+
+### 💻 **Run Locally** (Optional)
+If you prefer to run it locally or contribute to the project:
+
+```bash
+git clone https://github.com/gupta-kartik/wysiwyg.git
+cd wysiwyg
+npm install
+npm run dev
+```
+
+Visit `http://localhost:3000` for local development.
 
 ## Core User Stories
 
@@ -35,18 +58,11 @@ A lightning-fast note-taking web application that seamlessly integrates with Git
 - **GitHub Integration**: Octokit REST API
 - **Icons**: Lucide React
 - **Styling**: Tailwind CSS with custom responsive design
+- **Deployment**: Vercel with custom domain
 
-## Setup Instructions
+## GitHub Personal Access Token Setup
 
-### 1. Clone and Install
-
-```bash
-git clone <repository-url>
-cd wysiwyg
-npm install
-```
-
-### 2. Create GitHub Personal Access Token
+To use the app (live or locally), you'll need a GitHub PAT:
 
 1. Go to [GitHub Settings > Personal Access Tokens](https://github.com/settings/tokens/new)
 2. Click "Generate new token (classic)"
@@ -55,10 +71,38 @@ npm install
    - `repo` - Full control of repositories
    - `read:user` - Read user profile data
 5. Click "Generate token" and copy it
+6. Enter it in the app when prompted
 
-### 3. Environment Variables (Optional)
+## Usage
 
-Copy the example environment file and configure default repository:
+### First Time Setup
+1. **Visit [quicknotes.gupta-kartik.com](https://quicknotes.gupta-kartik.com)**
+2. **Enter your GitHub PAT** when prompted
+3. **Configure repository** (optional) using the settings panel
+4. You're ready to capture notes!
+
+### Adding Notes to Existing Issues
+1. **Type your notes** in the main textarea
+2. **Search for Issues** by typing keywords in the Issue search box
+3. **Select an Issue** from the auto-suggestions
+4. **Save** using the button or Ctrl/Cmd+Enter
+
+### Creating New Issues
+1. **Type your notes** that will become the Issue description
+2. **Click "Create new issue"**
+3. **Enter a title** for the Issue
+4. **Select labels** from the available options
+5. **Save** to create the Issue with your notes as the description
+
+### Repository Configuration
+- **Settings Panel**: Click the settings icon in the header
+- **Change on-the-fly**: Switch repositories without restarting
+- **Persistent**: Settings are saved in browser storage
+
+## Development Setup
+
+### Environment Variables (Optional)
+For local development, you can set default repository:
 
 ```bash
 cp .env.example .env.local
@@ -72,50 +116,7 @@ GITHUB_REPO_OWNER=your-org
 GITHUB_REPO_NAME=your-repo
 ```
 
-### 4. Run the Application
-
-```bash
-# Development
-npm run dev
-
-# Production build
-npm run build
-npm start
-```
-
-Visit `http://localhost:3000` to start using the app.
-
-## Usage
-
-### First Time Setup
-
-1. **Enter your GitHub PAT** when prompted
-2. **Configure repository** (optional) using the settings panel
-3. You're ready to capture notes!
-
-### Adding Notes to Existing Issues
-
-1. **Type your notes** in the main textarea
-2. **Search for Issues** by typing keywords in the Issue search box
-3. **Select an Issue** from the auto-suggestions
-4. **Save** using the button or Ctrl/Cmd+Enter
-
-### Creating New Issues
-
-1. **Type your notes** that will become the Issue description
-2. **Click "Create new issue"**
-3. **Enter a title** for the Issue
-4. **Select labels** from the available options
-5. **Save** to create the Issue with your notes as the description
-
-### Repository Configuration
-
-- **Settings Panel**: Click the settings icon in the header
-- **Change on-the-fly**: Switch repositories without restarting
-- **Persistent**: Settings are saved in browser storage
-
-## API Routes
-
+### API Routes
 The application includes these API endpoints:
 
 - `GET /api/github/user` - Validate PAT and get user info
