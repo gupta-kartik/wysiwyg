@@ -19,19 +19,20 @@ export async function GET(request: NextRequest) {
       auth: token,
     });
 
-    const response = await octokit.rest.issues.listLabelsForRepo({
+    // Fetch all labels using Octokit's pagination
+    const labels = await octokit.paginate(octokit.rest.issues.listLabelsForRepo, {
       owner: repoOwner,
       repo: repoName,
       per_page: 100,
     });
 
-    const labels = response.data.map(label => ({
+    const formattedLabels = labels.map(label => ({
       name: label.name,
       color: label.color,
       description: label.description,
     }));
 
-    return NextResponse.json({ labels });
+    return NextResponse.json({ labels: formattedLabels });
   } catch (error) {
     console.error('Error fetching labels:', error);
     return NextResponse.json(
