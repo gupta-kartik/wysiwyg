@@ -685,12 +685,21 @@ export default function Home() {
               {/* Create New Issue Option */}
               <button
                 onClick={() => {
-                  setShowNewIssue(true);
-                  setSelectedIssue(null);
-                  setSearchQuery('');
-                  setSuggestions([]);
+                  if (showNewIssue) {
+                    // Collapse panel
+                    setShowNewIssue(false);
+                    setNewIssueTitle('');
+                  } else {
+                    // Open panel (reset issue selection context)
+                    setShowNewIssue(true);
+                    setSelectedIssue(null);
+                    setSearchQuery('');
+                    setSuggestions([]);
+                  }
                 }}
                 className="mt-2 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer"
+                aria-expanded={showNewIssue}
+                aria-controls="new-issue-panel"
               >
                 <Plus className="h-4 w-4" />
                 Create new issue
@@ -699,7 +708,7 @@ export default function Home() {
 
             {/* New Issue Form */}
             {showNewIssue && (
-              <div className="mb-6 p-4 rounded-md border bg-blue-50 border-blue-200 dark:bg-[color-mix(in_srgb,var(--surface-subtle)_90%,#1e3a8a)] dark:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))]">
+              <div id="new-issue-panel" className="mb-6 p-4 rounded-md border bg-blue-50 border-blue-200 dark:bg-[color-mix(in_srgb,var(--surface-subtle)_90%,#1e3a8a)] dark:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))]">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-[var(--foreground)] mb-3">Create New Issue</h3>
                 <div className="mb-4">
                   <label htmlFor="issue-title" className="block text-sm font-medium text-gray-700 mb-1">
