@@ -122,9 +122,9 @@ export default function Home() {
     if (typeof document !== 'undefined') {
       document.documentElement.classList.toggle('dark', theme === 'dark');
     }
-     const savedPat = localStorage.getItem('github-pat');
-     const savedRepoOwner = localStorage.getItem('repo-owner');
-     const savedRepoName = localStorage.getItem('repo-name');
+    const savedPat = localStorage.getItem('github-pat');
+    const savedRepoOwner = localStorage.getItem('repo-owner');
+    const savedRepoName = localStorage.getItem('repo-name');
     
     if (savedPat) {
       setPat(savedPat);
